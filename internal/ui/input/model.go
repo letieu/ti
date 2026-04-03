@@ -45,3 +45,7 @@ func (m Model) Init() tea.Cmd {
 func (m *Model) SetWidth(w int) {
 	m.textarea.SetWidth(w)
 }
+
+func (m *Model) InsertFile(path string) {
+	m.textarea.InsertString("@" + path)
+}

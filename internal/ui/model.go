@@ -2,15 +2,12 @@ package ui
 
 import (
 	"github.com/letieu/ti/internal/ui/input"
-	"github.com/letieu/ti/internal/ui/list"
 	"github.com/letieu/ti/internal/ui/messages"
 
 	tea "charm.land/bubbletea/v2"
 )
 
 type Model struct {
-	suggestion list.Model
-
 	width  int
 	height int
 
