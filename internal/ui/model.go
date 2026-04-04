@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/letieu/ti/internal/agent"
 	"github.com/letieu/ti/internal/ui/input"
 	"github.com/letieu/ti/internal/ui/messages"
 
@@ -13,12 +14,14 @@ type Model struct {
 
 	messages messages.Model
 	input    input.Model
+	agent    agent.Agent
 }
 
 func InitialModel() Model {
 	return Model{
 		messages: messages.New(),
 		input:    input.New(),
+		agent: agent.NewAgent(),
 	}
 }
 

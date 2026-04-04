@@ -7,14 +7,15 @@ import (
 
 	"charm.land/bubbles/v2/cursor"
 	tea "charm.land/bubbletea/v2"
+	"github.com/letieu/ti/internal/agent"
+	"github.com/letieu/ti/internal/ui/event"
 	"github.com/letieu/ti/internal/ui/fzf"
 	"github.com/letieu/ti/internal/ui/input"
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
-		messagesCmd tea.Cmd
-		inputCmd    tea.Cmd
+		inputCmd tea.Cmd
 	)
 
 	switch msg := msg.(type) {
@@ -50,10 +51,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, inputCmd
 
 	case input.SubmitMsg:
-		m.messages, messagesCmd = m.messages.Update(msg)
-		return m, messagesCmd
+		return m, func() tea.Msg {
+			return event.UserMsg{Text: msg.Text}
+		}
+
+	case event.UserMsg:
+		m.messages.AddUserMsg(msg.Text)
+		ch, _ := m.agent.Chat(msg.Text)
+		return m, waitForEvent(ch)
+
+	case event.StreamMsg:
+		m.messages.AddAgentStream(msg.Ev.Data)
+		return m, waitForEvent(msg.Ch)
+
+	case event.StreamDoneMsg:
+		m.messages.AddAgentStream("DONE")
+		return m, nil
 	}
 
-	m.messages, messagesCmd = m.messages.Update(msg)
-	return m, tea.Batch(inputCmd, messagesCmd)
+	return m, tea.Batch(inputCmd)
+}
+
+func waitForEvent(ch <-chan agent.AgentEvent) tea.Cmd {
+	return func() tea.Msg {
+		ev, ok := <-ch
+		if !ok {
+			return event.StreamDoneMsg{}
+		}
+
+		return event.StreamMsg{Ev: ev, Ch: ch}
+	}
 }

@@ -22,7 +22,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					return TriggerFzfMsg{}
 				}
 			}
-		case "enter":
+		case "enter", "ctrl+m":
 			val := m.textarea.Value()
 			m.textarea.Reset()
 			return m, func() tea.Msg {
