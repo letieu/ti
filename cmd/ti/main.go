@@ -1,16 +1,10 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
-	tea "charm.land/bubbletea/v2"
-	"github.com/letieu/ti/internal/ui"
+	"github.com/letieu/ti/internal/cli"
 )
 
 func main() {
-	p := tea.NewProgram(ui.InitialModel())
-	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Oof: %v\n", err)
-	}
+	c := cli.New()
+	c.Run()
 }
