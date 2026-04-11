@@ -1,0 +1,62 @@
+[
+  {
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "thoughtSignature": "EsMBCsABAb4+9vsYcXsP5S7jRvd+ZTOO29eiDixa0vW9UN8YTopSKoo2hq3es2gBJb6DngYYjcJi2eGkbBl7+jSB59peym2l/lW5NuOW69IMHg6WPZ8F3qdHOH/mLj6mQ1Zs8burKy5EVgiVYAkDWrKN4crJTUVD9NfiH/TkurWOF8yVWovs9q7IWAHVTtSULfTNrduVyBdb0h3HnKt67jktBvPDm9mwOCmuhR+a4bt+FYeVfkjrN+54krtZZQakH+nPqHV9",
+                "functionCall": {
+                  "name": "get_weather",
+                  "args": {
+                    "city": "Hanoi"
+                  },
+                  "id": "p59k7qas"
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "usageMetadata": {
+        "promptTokenCount": 49,
+        "candidatesTokenCount": 17,
+        "totalTokenCount": 91,
+        "thoughtsTokenCount": 25
+      },
+      "modelVersion": "gemini-3-flash",
+      "responseId": "lMnYaYalCoiGz7IP75-N2Ak"
+    },
+    "traceId": "f3718b0a8abae25a",
+    "metadata": {}
+  },
+  {
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "text": ""
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "promptTokenCount": 49,
+        "candidatesTokenCount": 17,
+        "totalTokenCount": 91,
+        "thoughtsTokenCount": 25
+      },
+      "modelVersion": "gemini-3-flash",
+      "responseId": "lMnYaYalCoiGz7IP75-N2Ak"
+    },
+    "traceId": "f3718b0a8abae25a",
+    "metadata": {}
+  }
+]

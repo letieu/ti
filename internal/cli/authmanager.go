@@ -53,6 +53,7 @@ func (m *AuthManager) GetCreds(provider string) (auth.OAuthCredentials, error) {
 		return auth.OAuthCredentials{}, err
 	}
 
+	newCreds.Metadata = creds.Metadata
 	m.SetCreds(provider, newCreds)
 	return newCreds, nil
 }

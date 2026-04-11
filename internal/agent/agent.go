@@ -5,13 +5,16 @@ import (
 	"errors"
 
 	"github.com/letieu/ti/internal/llm"
-	"github.com/letieu/ti/internal/llm/event"
+	"github.com/letieu/ti/internal/logger"
+	"github.com/letieu/ti/internal/message"
+	"github.com/letieu/ti/internal/tool"
 )
 
 var ErrNoLLMProvided = errors.New("no LLM provided for chat")
 
 type Agent struct {
-	Memory       []llm.Message
+	Memory       []message.Message
+	Tools        []tool.Tool
 	SystemPrompt string
 }
 
@@ -22,49 +25,55 @@ func NewAgent() Agent {
 	}
 }
 
-// ChatOptions contains options for a chat interaction
-type ChatOptions struct {
-	LLM          llm.Lmm
-	SystemPrompt string // Optional: override agent's default system prompt
-}
-
 // Chat starts a conversation with the given LLM
 // Each chat can use a different LLM provider
-func (a *Agent) Chat(ctx context.Context, input string, opts ChatOptions) (<-chan event.Event, error) {
-	if opts.LLM == nil {
-		return nil, ErrNoLLMProvided
-	}
+func (a *Agent) Chat(ctx context.Context, input string, streamer Streamer) (<-chan Event, error) {
+	logger.Log.Info("Starting chat", "inputLength", len(input), "memorySize", len(a.Memory))
 
 	a.addUserMsg(input)
-	ch := make(chan event.Event)
+	ch := make(chan Event)
 
-	systemPrompt := a.SystemPrompt
-	if opts.SystemPrompt != "" {
-		systemPrompt = opts.SystemPrompt
-	}
-
-	llmContext := llm.LlmContext{
-		SystemPrompt: systemPrompt,
-		Messages:     a.Memory,
-	}
-
-	go a.mainLoop(ctx, ch, opts.LLM, llmContext)
+	go a.mainLoop(ctx, ch, streamer)
 	return ch, nil
 }
 
 func (a *Agent) addUserMsg(text string) {
-	a.Memory = append(a.Memory, llm.Message{Role: "user", Text: text})
+	logger.Log.Debug("Adding user message", "text", text)
+	a.Memory = append(a.Memory, &message.UserText{Text: text})
 }
 
-func (a *Agent) mainLoop(ctx context.Context, ch chan event.Event, lmm llm.Lmm, llmContext llm.LlmContext) {
+func (a *Agent) mainLoop(ctx context.Context, ch chan Event, lmm Streamer) {
 	defer close(ch)
-	stream := lmm.Stream(ctx, llmContext)
+	logger.Log.Debug("Starting main loop", "toolsCount", len(a.Tools))
+	logger.Log.Debug("Starting main loop", "MessagesCount", len(a.Memory))
+	logger.Log.Debug("Starting main loop", "Messages", a.Memory)
 
-	for e := range stream {
+	stream, err := lmm.Stream(ctx, llm.LlmContext{
+		SystemPrompt: a.SystemPrompt,
+		Messages:     a.Memory,
+		Tools:        a.Tools,
+	})
+	if err != nil {
+		logger.Log.Error("Failed to create LLM stream", "error", err)
+		ch <- Error{
+			Type: "stream_error",
+			Msg:  err.Error(),
+			Code: "STREAM_FAILED",
+		}
+		return
+	}
+
+	handler := newEventHandler(a, ch)
+
+	for ev := range stream {
 		select {
 		case <-ctx.Done():
+			logger.Log.Debug("Context cancelled, stopping main loop")
 			return
-		case ch <- e:
+		default:
+			handler.processEvent(ev)
 		}
 	}
+
+	logger.Log.Debug("Main loop completed", "finalMemorySize", len(a.Memory))
 }

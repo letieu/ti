@@ -13,6 +13,8 @@ import (
 
 	"github.com/letieu/ti/internal/llm"
 	"github.com/letieu/ti/internal/llm/event"
+	"github.com/letieu/ti/internal/logger"
+	"github.com/letieu/ti/internal/message"
 )
 
 type Antigravity struct {
@@ -59,16 +61,20 @@ func (a Antigravity) GetName() string {
 }
 
 func (a Antigravity) Stream(
-	ctx context.Context,
-	llmContext llm.LlmContext,
-) <-chan event.Event {
+	ctx context.Context, llmContext llm.LlmContext) (<-chan event.Event, error) {
+	if len(llmContext.Messages) == 0 {
+		return nil, fmt.Errorf("Should have messages")
+	}
+
 	eventCh := make(chan event.Event, 32)
 	go a.streamEvents(ctx, eventCh, llmContext)
-	return eventCh
+	return eventCh, nil
 }
 
 func (a Antigravity) streamEvents(ctx context.Context, eventCh chan<- event.Event, llmContext llm.LlmContext) {
 	defer close(eventCh)
+
+	logger.Log.Debug("Starting stream events", "model", a.option.Model)
 
 	eventCh <- event.Start{}
 
@@ -102,11 +108,13 @@ func (a Antigravity) adaptRawPartsToEvents(ctx context.Context, rawCh <-chan Raw
 	for {
 		select {
 		case <-ctx.Done():
+			logger.Log.Debug("Context done in adaptRawPartsToEvents")
 			a.endCurrentPart(currentPart, eventCh)
 			return
 
 		case err := <-errCh:
 			if err != nil {
+				logger.Log.Error("Error received from stream provider", "error", err)
 				var apiErr *APIError
 
 				if errors.As(err, &apiErr) {
@@ -132,6 +140,7 @@ func (a Antigravity) adaptRawPartsToEvents(ctx context.Context, rawCh <-chan Raw
 		case part, ok := <-rawCh:
 			if !ok {
 				// Stream finished, end current part
+				logger.Log.Debug("Raw parts channel closed, ending stream")
 				a.endCurrentPart(currentPart, eventCh)
 				eventCh <- event.End{}
 				return
@@ -146,6 +155,7 @@ func (a Antigravity) adaptRawPartsToEvents(ctx context.Context, rawCh <-chan Raw
 				a.endCurrentPart(currentPart, eventCh)
 				// Start the new part
 				a.startNewPart(newPartType, eventCh)
+				logger.Log.Debug("Part type changed", "from", currentPart, "to", newPartType)
 				currentPart = newPartType
 			}
 
@@ -219,8 +229,20 @@ func streamFromAPI(
 	url := "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:streamGenerateContent?alt=sse"
 	jsonBody := buildRequestBody(opts, llmContext)
 
+	logger.Log.Debug("Preparing API request",
+		"url", url,
+		"model", opts.Model,
+		"temperature", opts.Temperature,
+		"maxTokens", opts.MaxTokens,
+		"messageCount", len(llmContext.Messages),
+	)
+
+	// Log request body for debugging (be careful with sensitive data)
+	logger.Log.Debug("Request body", "body", string(jsonBody))
+
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
 	if err != nil {
+		logger.Log.Error("Failed to create HTTP request", "error", err)
 		return err
 	}
 
@@ -229,14 +251,23 @@ func streamFromAPI(
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("User-Agent", "antigravity/1.18.4 darwin/arm64")
 
+	logger.Log.Debug("Sending API request")
+
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
+		logger.Log.Error("HTTP request failed", "error", err)
 		return err
 	}
 	defer res.Body.Close()
 
+	logger.Log.Debug("Received API response", "statusCode", res.StatusCode)
+
 	if res.StatusCode != 200 {
 		b, _ := io.ReadAll(res.Body)
+		logger.Log.Error("API error response",
+			"statusCode", res.StatusCode,
+			"response", string(b),
+		)
 		return &APIError{
 			StatusCode: res.StatusCode,
 			Message:    string(b),
@@ -248,21 +279,31 @@ func streamFromAPI(
 
 func readSSEStream(ctx context.Context, body io.Reader, ch chan<- RawPart) error {
 	reader := bufio.NewReader(body)
+	logger.Log.Debug("Starting to read SSE stream")
+	partCount := 0
 
 	for {
 		resp, err := parseSSELine(reader)
 		if err != nil {
 			if err == io.EOF {
+				logger.Log.Debug("SSE stream ended", "partsReceived", partCount)
 				return nil
 			}
 			if ctx.Err() != nil {
+				logger.Log.Debug("Context cancelled", "error", ctx.Err())
 				return ctx.Err()
 			}
+			logger.Log.Error("Error parsing SSE line", "error", err)
 			return err
 		}
 
 		parts := extractPartsFromResponse(resp)
+		if len(parts) > 0 {
+			partCount += len(parts)
+			logger.Log.Debug("Extracted parts from response", "count", len(parts))
+		}
 		if err := sendPartsToChannel(ctx, parts, ch); err != nil {
+			logger.Log.Error("Error sending parts to channel", "error", err)
 			return err
 		}
 	}
@@ -342,51 +383,7 @@ func extractPartsFromResponse(resp map[string]any) []any {
 }
 
 func buildRequestBody(opts GeminiOptions, llmContext llm.LlmContext) []byte {
-	// Build contents array with system prompt and messages
-	contents := []map[string]any{}
-
-	// Add system prompt if present
-	if llmContext.SystemPrompt != "" {
-		contents = append(contents, map[string]any{
-			"role": "user",
-			"parts": []map[string]string{
-				{"text": llmContext.SystemPrompt},
-			},
-		})
-		// Add model response acknowledging system prompt
-		contents = append(contents, map[string]any{
-			"role": "model",
-			"parts": []map[string]string{
-				{"text": "Understood."},
-			},
-		})
-	}
-
-	// Add message history
-	for _, msg := range llmContext.Messages {
-		role := msg.Role
-		// Convert role names if needed (e.g., "assistant" -> "model")
-		if role == "assistant" {
-			role = "model"
-		}
-
-		contents = append(contents, map[string]any{
-			"role": role,
-			"parts": []map[string]string{
-				{"text": msg.Text},
-			},
-		})
-	}
-
-	// If no messages at all, add a default greeting
-	if len(contents) == 0 {
-		contents = append(contents, map[string]any{
-			"role": "user",
-			"parts": []map[string]string{
-				{"text": "Hello"},
-			},
-		})
-	}
+	contents := mapMessagesToRequest(llmContext.Messages)
 
 	body := map[string]any{
 		"project":     opts.ProjectID,
@@ -395,6 +392,12 @@ func buildRequestBody(opts GeminiOptions, llmContext llm.LlmContext) []byte {
 		"requestType": "agent",
 		"request": map[string]any{
 			"contents": contents,
+			"systemInstruction": map[string]any{
+				"role": message.UserRole,
+				"parts": []map[string]string{
+					{"text": llmContext.SystemPrompt},
+				},
+			},
 			"generationConfig": map[string]any{
 				"temperature":     defaultFloat(opts.Temperature, 0.7),
 				"maxOutputTokens": defaultInt(opts.MaxTokens, 1024),
@@ -418,4 +421,52 @@ func defaultInt(v, def int) int {
 		return def
 	}
 	return v
+}
+
+func mapMessagesToRequest(messages []message.Message) []map[string]any {
+	contents := []map[string]any{}
+
+	for _, msg := range messages {
+		part := map[string]any{}
+
+		switch m := msg.(type) {
+		case *message.UserText:
+			part = map[string]any{
+				"text": m.Text,
+			}
+		case *message.ModelText:
+			part = map[string]any{
+				"text": m.Text,
+			}
+		case *message.ModelThought:
+			part = map[string]any{
+				"text": m.Text, "thought": true,
+			}
+		case *message.ModelToolRequest:
+			part = map[string]any{
+				"thoughtSignature": m.Signature,
+				"functionCall": map[string]any{
+					"name": m.Name,
+					"args": m.Args, // TODO: map args
+					"id":   m.Id,
+				},
+			}
+		case *message.UserToolResult:
+			part = map[string]any{
+				"functionResponse": map[string]any{
+					"name":     m.Name,
+					"response": m.Response,
+				},
+			}
+		}
+
+		content := map[string]any{
+			"role":  msg.GetRole(),
+			"parts": []map[string]any{part},
+		}
+
+		contents = append(contents, content)
+	}
+
+	return contents
 }
