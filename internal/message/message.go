@@ -36,7 +36,7 @@ func (m ModelThought) GetRole() Role {
 
 type ModelToolRequest struct {
 	Name      string
-	Args      any
+	Args      map[string]any
 	Id        string
 	Signature string
 }

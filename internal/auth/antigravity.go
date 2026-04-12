@@ -21,8 +21,8 @@ const ANTIGRAVITY_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 const ANTIGRAVITY_REDIRECT_URI = "http://localhost:51121/oauth-callback"
 const ANTIGRAVITY_AUTH_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
-const encodedClientID = "xx"
-const encodedClientSecret = "xx"
+const encodedClientID = "MTA3MTAwNjA2MDU5MS10bWhzc2luMmgyMWxjcmUyMzV2dG9sb2poNGc0MDNlcC5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbQ=="
+const encodedClientSecret = "R09DU1BYLUs1OEZXUjQ4NkxkTEoxbUxCOHNYQzR6NnFEQWY="
 
 func decode(s string) string {
 	b, _ := base64.StdEncoding.DecodeString(s)

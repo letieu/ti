@@ -1,6 +1,6 @@
 ###
-@ACCESS_TOKEN=xx
-@PROJECT_ID=xx
+@ACCESS_TOKEN=YOUR_ACCESS_TOKEN
+@PROJECT_ID=YOUR_PROJECT_ID
 @MODEL=gemini-3-flash
 
 @ENDPOINT=daily-cloudcode-pa.sandbox.googleapis.com
@@ -25,17 +25,19 @@ User-Agent: antigravity/1.18.4 darwin/arm64
       {
         "role": "user",
         "parts": [
-          { "text": "Explain how OAuth works in simple terms" }
+          { "text": "hi, create me a file with name abc.txt in current parent folder." }
         ]
       }
     ],
+    "systemInstruction": {
+      "role": "user",
+      "parts": [
+        { "text": "you are Nam, coding assistant" }
+      ]
+    },
     "generationConfig": {
       "temperature": 0.7,
-      "maxOutputTokens": 1024,
-      "thinkingConfig": {
-        "includeThoughts": true,
-        "thinkingLevel": "LOW"
-      }
+      "maxOutputTokens": 1024
     }
   }
 }

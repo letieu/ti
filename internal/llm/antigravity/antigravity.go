@@ -15,6 +15,7 @@ import (
 	"github.com/letieu/ti/internal/llm/event"
 	"github.com/letieu/ti/internal/logger"
 	"github.com/letieu/ti/internal/message"
+	"github.com/letieu/ti/internal/tool"
 )
 
 type Antigravity struct {
@@ -22,11 +23,13 @@ type Antigravity struct {
 }
 
 type GeminiOptions struct {
-	APIKey      string
-	ProjectID   string
-	Model       string
-	Temperature float64
-	MaxTokens   int
+	APIKey          string
+	ProjectID       string
+	Model           string
+	Temperature     float64
+	MaxTokens       int
+	IncludeThoughts bool
+	ThinkingLevel   string
 }
 
 type APIError struct {
@@ -154,7 +157,7 @@ func (a Antigravity) adaptRawPartsToEvents(ctx context.Context, rawCh <-chan Raw
 				// End the previous part
 				a.endCurrentPart(currentPart, eventCh)
 				// Start the new part
-				a.startNewPart(newPartType, eventCh)
+				a.startNewPart(part, newPartType, eventCh)
 				logger.Log.Debug("Part type changed", "from", currentPart, "to", newPartType)
 				currentPart = newPartType
 			}
@@ -167,6 +170,10 @@ func (a Antigravity) adaptRawPartsToEvents(ctx context.Context, rawCh <-chan Raw
 
 func (a Antigravity) detectPartType(part RawPart) partType {
 	if _, hasText := part["text"]; hasText {
+		if thought, _ := part["thought"]; thought == true {
+			return partTypeThinking
+		}
+
 		return partTypeText
 	}
 	if _, hasThinking := part["thinking"]; hasThinking {
@@ -178,14 +185,29 @@ func (a Antigravity) detectPartType(part RawPart) partType {
 	return partTypeNone
 }
 
-func (a Antigravity) startNewPart(pt partType, eventCh chan<- event.Event) {
+func (a Antigravity) startNewPart(part RawPart, pt partType, eventCh chan<- event.Event) {
+	logger.Log.Debug(fmt.Sprintf("Raw part: %v", part))
+
 	switch pt {
 	case partTypeText:
 		eventCh <- event.TextStart{}
 	case partTypeThinking:
 		eventCh <- event.ThinkingStart{}
 	case partTypeFunction:
-		eventCh <- event.FunctionStart{}
+		sig, _ := part["thoughtSignature"].(string)
+
+		functionCall, _ := part["functionCall"].(map[string]any)
+
+		id, _ := functionCall["id"].(string)
+		name, _ := functionCall["name"].(string)
+		args, _ := functionCall["args"].(map[string]any)
+
+		eventCh <- event.FunctionStart{
+			Id:               id,
+			Name:             name,
+			Args:             args,
+			ThoughtSignature: sig,
+		}
 	}
 }
 
@@ -207,7 +229,7 @@ func (a Antigravity) sendPartDelta(part RawPart, pt partType, eventCh chan<- eve
 			eventCh <- event.TextDelta{Delta: text}
 		}
 	case partTypeThinking:
-		if thinking, ok := part["thinking"].(string); ok {
+		if thinking, ok := part["text"].(string); ok {
 			eventCh <- event.ThinkingDelta{Delta: thinking}
 		}
 	case partTypeFunction:
@@ -327,6 +349,8 @@ func sendPartsToChannel(ctx context.Context, parts []any, ch chan<- RawPart) err
 
 func parseSSELine(reader *bufio.Reader) (map[string]any, error) {
 	line, err := reader.ReadString('\n')
+	logger.Log.Debug(line)
+
 	if err != nil {
 		return nil, err
 	}
@@ -383,7 +407,8 @@ func extractPartsFromResponse(resp map[string]any) []any {
 }
 
 func buildRequestBody(opts GeminiOptions, llmContext llm.LlmContext) []byte {
-	contents := mapMessagesToRequest(llmContext.Messages)
+	contents := mapMessagesToRequestContents(llmContext.Messages)
+	tools := mapRequestTools(llmContext.Tools)
 
 	body := map[string]any{
 		"project":     opts.ProjectID,
@@ -392,6 +417,7 @@ func buildRequestBody(opts GeminiOptions, llmContext llm.LlmContext) []byte {
 		"requestType": "agent",
 		"request": map[string]any{
 			"contents": contents,
+			"tools":    tools,
 			"systemInstruction": map[string]any{
 				"role": message.UserRole,
 				"parts": []map[string]string{
@@ -401,6 +427,15 @@ func buildRequestBody(opts GeminiOptions, llmContext llm.LlmContext) []byte {
 			"generationConfig": map[string]any{
 				"temperature":     defaultFloat(opts.Temperature, 0.7),
 				"maxOutputTokens": defaultInt(opts.MaxTokens, 1024),
+				"thinkingConfig": map[string]any{
+					"includeThoughts": opts.IncludeThoughts,
+					"thinkingLevel":   defaultString(opts.ThinkingLevel, "LOW"),
+				},
+			},
+			"toolConfig": map[string]any{
+				"functionCallingConfig": map[string]string{
+					"mode": "AUTO",
+				},
 			},
 		},
 	}
@@ -416,6 +451,14 @@ func defaultFloat(v, def float64) float64 {
 	return v
 }
 
+func defaultString(v, def string) string {
+	if v == "" {
+		return def
+	}
+
+	return v
+}
+
 func defaultInt(v, def int) int {
 	if v == 0 {
 		return def
@@ -423,7 +466,25 @@ func defaultInt(v, def int) int {
 	return v
 }
 
-func mapMessagesToRequest(messages []message.Message) []map[string]any {
+func mapRequestTools(tools []tool.ToolDescription) []map[string]any {
+	requestTools := []map[string]any{}
+
+	for _, tool := range tools {
+		toolDef := map[string]any{
+			"name":        tool.Name,
+			"description": tool.Description,
+			"parameters":  tool.Parameters,
+		}
+
+		requestTools = append(requestTools, map[string]any{
+			"functionDeclarations": toolDef,
+		})
+	}
+
+	return requestTools
+}
+
+func mapMessagesToRequestContents(messages []message.Message) []map[string]any {
 	contents := []map[string]any{}
 
 	for _, msg := range messages {

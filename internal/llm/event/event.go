@@ -17,7 +17,12 @@ type ThinkingDelta struct {
 }
 type ThinkingEnd struct{}
 
-type FunctionStart struct{}
+type FunctionStart struct {
+	Id               string
+	Name             string
+	Args             map[string]any
+	ThoughtSignature string
+}
 type FunctionDelta struct {
 	Delta string
 }

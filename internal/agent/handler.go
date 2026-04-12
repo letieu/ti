@@ -91,7 +91,7 @@ func (h *eventHandler) handleEnd() {
 	h.eventChan <- Done{}
 }
 
-func (h *eventHandler) processEvent(ev event.Event) {
+func (h *eventHandler) processEvent(ev event.Event) message.ModelToolRequest {
 	logger.Log.Debug(fmt.Sprintf("Stream Event: %T %v", ev, ev))
 
 	switch e := ev.(type) {
@@ -107,9 +107,30 @@ func (h *eventHandler) processEvent(ev event.Event) {
 		h.handleThinkingDelta(e.Delta)
 	case event.ThinkingEnd:
 		h.handleThinkingEnd()
+	case event.FunctionStart:
+		return h.handleFunction(e)
 	case event.Error:
 		h.handleError(e)
 	case event.End:
 		h.handleEnd()
+		// default:
+		// 	fmt.Printf("%T %v \n", ev, ev)
 	}
+
+	return message.ModelToolRequest{}
+}
+
+func (h *eventHandler) handleFunction(ev event.FunctionStart) message.ModelToolRequest {
+	newTool := message.ModelToolRequest{
+		Name:      ev.Name,
+		Id:        ev.Id,
+		Args:      ev.Args,
+		Signature: ev.ThoughtSignature,
+	}
+	h.eventChan <- ToolCallRequest{
+		Name: ev.Name,
+		Aggs: ev.Args,
+	}
+
+	return newTool
 }

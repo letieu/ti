@@ -8,5 +8,5 @@ import (
 type LlmContext struct {
 	SystemPrompt string
 	Messages     []message.Message
-	Tools        []tool.Tool
+	Tools        []tool.ToolDescription
 }

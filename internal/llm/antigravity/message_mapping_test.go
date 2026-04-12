@@ -14,7 +14,7 @@ func TestMapMessagesToRequestWithPointers(t *testing.T) {
 		&message.UserText{Text: "How are you?"},
 	}
 
-	contents := mapMessagesToRequest(messages)
+	contents := mapMessagesToRequestContents(messages)
 
 	if len(contents) != 4 {
 		t.Errorf("Expected 4 contents, got %d", len(contents))
@@ -75,7 +75,7 @@ func TestMapMessagesToRequestWithToolMessages(t *testing.T) {
 		},
 	}
 
-	contents := mapMessagesToRequest(messages)
+	contents := mapMessagesToRequestContents(messages)
 
 	if len(contents) != 3 {
 		t.Errorf("Expected 3 contents, got %d", len(contents))

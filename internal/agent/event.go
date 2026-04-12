@@ -22,32 +22,16 @@ type ThinkingEnd struct {
 }
 
 // Tool call events - when the agent is calling a tool
-type ToolCallStart struct {
-	ToolName string
-	ToolID   string
-}
-type ToolCallInput struct {
-	ToolName string
-	Name     string // Parameter name
-	Value    string // Parameter value
-}
-type ToolCallEnd struct {
-	ToolName string
-	ToolID   string
+type ToolCallRequest struct {
+	Name string
+	Aggs any
 }
 
 // Tool result events - when a tool returns results
-type ToolResultStart struct {
+type ToolCallResult struct {
 	ToolName string
 	ToolID   string
-}
-type ToolResultDelta struct {
-	Delta string
-}
-type ToolResultEnd struct {
-	ToolName string
-	ToolID   string
-	Content  string
+	Result   map[string]any
 }
 
 // Error events
