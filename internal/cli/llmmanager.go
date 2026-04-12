@@ -48,6 +48,11 @@ func (m *LlmManager) SetProvider(provider string, creds auth.OAuthCredentials) e
 	}
 }
 
+// Providers returns the list of available providers
+func (m *LlmManager) Providers() []string {
+	return m.providers
+}
+
 // Stream delegates to the configured streamer
 func (m *LlmManager) Stream(ctx context.Context, llmContext llm.LlmContext) (<-chan event.Event, error) {
 	if m.streamer == nil {

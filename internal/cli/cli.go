@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -196,9 +197,44 @@ func (c *Cli) handleChat(line string) {
 
 func (c *Cli) handleCmd(command string) {
 	logger.Log.Debug("Handling command", "command", command)
-	if command == "/login" {
+
+	// Parse command and arguments
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return
+	}
+
+	cmd := parts[0]
+
+	switch cmd {
+	case "/login":
 		logger.Log.Info("Initiating login")
 		c.authManager.Login(c.provider)
+
+	case "/set-provider":
+		if len(parts) < 2 {
+			fmt.Println("Usage: /set-provider <provider>")
+			fmt.Printf("Available providers: %s\n", strings.Join(c.llmManager.Providers(), ", "))
+			return
+		}
+
+		provider := parts[1]
+		providers := c.llmManager.Providers()
+
+		valid := slices.Contains(providers, provider)
+
+		if !valid {
+			fmt.Printf("Invalid provider: %s\n", provider)
+			fmt.Printf("Available providers: %s\n", strings.Join(providers, ", "))
+			return
+		}
+
+		c.provider = provider
+		fmt.Printf("Provider set to: %s\n", provider)
+		logger.Log.Info("Provider changed", "provider", provider)
+
+	default:
+		fmt.Printf("Unknown command: %s\n", cmd)
 	}
 }
 
