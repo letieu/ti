@@ -21,6 +21,7 @@ type Cli struct {
 	llmManager  *LlmManager
 	stopSpinner chan bool
 	provider    string
+	model       string
 }
 
 func New() Cli {
@@ -45,7 +46,8 @@ func New() Cli {
 		authManager: authManager,
 		llmManager:  llmManager,
 		stopSpinner: make(chan bool),
-		provider:    "mock",
+		provider:    "antigravity",
+		model:       "gemini-3-flash",
 	}
 }
 
@@ -131,7 +133,7 @@ func (c *Cli) handleChat(line string) {
 		return
 	}
 
-	err = c.llmManager.SetProvider(c.provider, creds)
+	err = c.llmManager.SetProvider(c.provider, c.model, creds)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error setting LLM provider: %v\n", err)
 		return
@@ -213,7 +215,7 @@ func (c *Cli) handleCmd(command string) {
 
 	case "/set-provider":
 		if len(parts) < 2 {
-			fmt.Println("Usage: /set-provider <provider>")
+			fmt.Println("Usage: /set-provider <provider> <model>")
 			fmt.Printf("Available providers: %s\n", strings.Join(c.llmManager.Providers(), ", "))
 			return
 		}
@@ -232,6 +234,10 @@ func (c *Cli) handleCmd(command string) {
 		c.provider = provider
 		fmt.Printf("Provider set to: %s\n", provider)
 		logger.Log.Info("Provider changed", "provider", provider)
+
+		model := parts[2]
+		c.model = model
+		fmt.Printf("Model set to: %s\n", model)
 
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)

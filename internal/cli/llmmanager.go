@@ -21,7 +21,7 @@ func NewLlmManager() *LlmManager {
 }
 
 // SetProvider configures the LLM provider with credentials
-func (m *LlmManager) SetProvider(provider string, creds auth.OAuthCredentials) error {
+func (m *LlmManager) SetProvider(provider string, model string, creds auth.OAuthCredentials) error {
 	switch provider {
 	case "antigravity":
 		projectID := creds.Metadata["project_id"]
@@ -32,7 +32,7 @@ func (m *LlmManager) SetProvider(provider string, creds auth.OAuthCredentials) e
 		m.streamer = antigravity.New(antigravity.GeminiOptions{
 			APIKey:          creds.Access,
 			ProjectID:       projectID,
-			Model:           "gemini-3-flash",
+			Model:           model,
 			Temperature:     0.7,
 			MaxTokens:       2048,
 			IncludeThoughts: true,
