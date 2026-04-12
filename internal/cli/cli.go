@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/letieu/ti/internal/agent"
-	"github.com/letieu/ti/internal/llm/antigravity"
 	"github.com/letieu/ti/internal/logger"
 )
 
@@ -18,7 +17,9 @@ type Cli struct {
 	input       []rune
 	term        *Terminal
 	authManager *AuthManager
+	llmManager  *LlmManager
 	stopSpinner chan bool
+	provider    string
 }
 
 func New() Cli {
@@ -32,14 +33,18 @@ func New() Cli {
 			a.DebugMemoryDumpPath = "memory_dump.json"
 		}
 	}
+
 	authManager, _ := NewAuthManager()
+	llmManager := NewLlmManager()
 
 	return Cli{
 		term:        t,
 		agent:       a,
 		ctx:         context.Background(),
 		authManager: authManager,
+		llmManager:  llmManager,
 		stopSpinner: make(chan bool),
+		provider:    "mock",
 	}
 }
 
@@ -118,27 +123,20 @@ func (c *Cli) handleChat(line string) {
 		return
 	}
 
-	oauth, err := c.authManager.GetCreds("antigravity")
+	creds, err := c.authManager.GetCreds(c.provider)
 	if err != nil {
 		logger.Log.Error("Failed to get credentials", "error", err)
 		fmt.Printf("err %v \n", err)
 		return
 	}
 
-	logger.Log.Debug("Retrieved credentials", "projectID", oauth.Metadata["project_id"])
+	err = c.llmManager.SetProvider(c.provider, creds)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error setting LLM provider: %v\n", err)
+		return
+	}
 
-	llm := antigravity.New(
-		antigravity.GeminiOptions{
-			APIKey:          oauth.Access,
-			ProjectID:       oauth.Metadata["project_id"],
-			Model:           "gemini-3-flash",
-			Temperature:     0.7,
-			MaxTokens:       2048,
-			IncludeThoughts: true,
-		},
-	)
-
-	ch, _ := c.agent.Chat(c.ctx, line, llm)
+	ch, _ := c.agent.Chat(c.ctx, line, c.llmManager)
 
 	go c.startSpinner()
 	isSpinning := true
@@ -200,7 +198,7 @@ func (c *Cli) handleCmd(command string) {
 	logger.Log.Debug("Handling command", "command", command)
 	if command == "/login" {
 		logger.Log.Info("Initiating login")
-		c.authManager.Login("antigravity")
+		c.authManager.Login(c.provider)
 	}
 }
 

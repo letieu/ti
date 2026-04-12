@@ -54,7 +54,7 @@ func (a *Agent) dumpMemory() {
 
 // Chat starts a conversation with the given LLM
 // Each chat can use a different LLM provider
-func (a *Agent) Chat(ctx context.Context, input string, streamer Streamer) (<-chan Event, error) {
+func (a *Agent) Chat(ctx context.Context, input string, streamer llm.Streamer) (<-chan Event, error) {
 	logger.Log.Info("Starting chat", "inputLength", len(input), "memorySize", len(a.Memory))
 
 	a.addUserMsg(input)
@@ -69,7 +69,7 @@ func (a *Agent) addUserMsg(text string) {
 	a.Memory = append(a.Memory, &message.UserText{Text: text})
 }
 
-func (a *Agent) mainLoop(ctx context.Context, ch chan Event, lmm Streamer) {
+func (a *Agent) mainLoop(ctx context.Context, ch chan Event, lmm llm.Streamer) {
 	defer close(ch)
 	logger.Log.Debug("Starting main loop", "toolsCount", len(a.Tools))
 
@@ -109,7 +109,7 @@ func (a *Agent) mainLoop(ctx context.Context, ch chan Event, lmm Streamer) {
 	logger.Log.Debug("Main loop completed", "finalMemorySize", len(a.Memory))
 }
 
-func (a *Agent) processTurn(ctx context.Context, handler *eventHandler, lmm Streamer) (bool, error) {
+func (a *Agent) processTurn(ctx context.Context, handler *eventHandler, lmm llm.Streamer) (bool, error) {
 	stream, err := lmm.Stream(ctx, llm.LlmContext{
 		SystemPrompt: a.SystemPrompt,
 		Messages:     a.Memory,

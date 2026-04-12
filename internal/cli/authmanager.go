@@ -29,6 +29,7 @@ func NewAuthManager() (*AuthManager, error) {
 	}
 
 	providerReg["antigravity"] = auth.AntigravityAuth{}
+	providerReg["mock"] = auth.MockAuth{}
 
 	return &AuthManager{
 		store:       store,
