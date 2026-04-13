@@ -1,4 +1,4 @@
-package antigravity
+package cloudcodeassist
 
 import (
 	"bufio"
@@ -18,7 +18,7 @@ import (
 	"github.com/letieu/ti/internal/tool"
 )
 
-type Antigravity struct {
+type CloudCodeAssist struct {
 	option GeminiOptions
 }
 
@@ -41,8 +41,7 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("status %d: %s", e.StatusCode, e.Message)
 }
 
-// New creates a new Antigravity LLM with the provided options
-func New(opts GeminiOptions) Antigravity {
+func New(opts GeminiOptions) CloudCodeAssist {
 	// Apply defaults if not provided
 	if opts.Temperature == 0 {
 		opts.Temperature = 0.7
@@ -54,16 +53,16 @@ func New(opts GeminiOptions) Antigravity {
 		opts.Model = "gemini-3-flash"
 	}
 
-	return Antigravity{
+	return CloudCodeAssist{
 		option: opts,
 	}
 }
 
-func (a Antigravity) GetName() string {
-	return "Antigravity"
+func (a CloudCodeAssist) GetName() string {
+	return "cca"
 }
 
-func (a Antigravity) Stream(
+func (a CloudCodeAssist) Stream(
 	ctx context.Context, llmContext llm.LlmContext) (<-chan event.Event, error) {
 	if len(llmContext.Messages) == 0 {
 		return nil, fmt.Errorf("Should have messages")
@@ -74,7 +73,7 @@ func (a Antigravity) Stream(
 	return eventCh, nil
 }
 
-func (a Antigravity) streamEvents(ctx context.Context, eventCh chan<- event.Event, llmContext llm.LlmContext) {
+func (a CloudCodeAssist) streamEvents(ctx context.Context, eventCh chan<- event.Event, llmContext llm.LlmContext) {
 	defer close(eventCh)
 
 	logger.Log.Debug("Starting stream events", "model", a.option.Model)
@@ -88,7 +87,7 @@ func (a Antigravity) streamEvents(ctx context.Context, eventCh chan<- event.Even
 	a.adaptRawPartsToEvents(ctx, rawCh, eventCh, errCh)
 }
 
-func (a Antigravity) runStreamProvider(ctx context.Context, rawCh chan<- RawPart, errCh chan<- error, llmContext llm.LlmContext) {
+func (a CloudCodeAssist) runStreamProvider(ctx context.Context, rawCh chan<- RawPart, errCh chan<- error, llmContext llm.LlmContext) {
 	defer close(rawCh)
 	err := streamFromAPI(ctx, a.option, llmContext, rawCh)
 	if err != nil {
@@ -105,7 +104,7 @@ const (
 	partTypeFunction partType = "function"
 )
 
-func (a Antigravity) adaptRawPartsToEvents(ctx context.Context, rawCh <-chan RawPart, eventCh chan<- event.Event, errCh <-chan error) {
+func (a CloudCodeAssist) adaptRawPartsToEvents(ctx context.Context, rawCh <-chan RawPart, eventCh chan<- event.Event, errCh <-chan error) {
 	currentPart := partTypeNone
 
 	for {
@@ -168,7 +167,7 @@ func (a Antigravity) adaptRawPartsToEvents(ctx context.Context, rawCh <-chan Raw
 	}
 }
 
-func (a Antigravity) detectPartType(part RawPart) partType {
+func (a CloudCodeAssist) detectPartType(part RawPart) partType {
 	if _, hasText := part["text"]; hasText {
 		if thought, _ := part["thought"]; thought == true {
 			return partTypeThinking
@@ -185,7 +184,7 @@ func (a Antigravity) detectPartType(part RawPart) partType {
 	return partTypeNone
 }
 
-func (a Antigravity) startNewPart(part RawPart, pt partType, eventCh chan<- event.Event) {
+func (a CloudCodeAssist) startNewPart(part RawPart, pt partType, eventCh chan<- event.Event) {
 	logger.Log.Debug(fmt.Sprintf("Raw part: %v", part))
 
 	switch pt {
@@ -211,7 +210,7 @@ func (a Antigravity) startNewPart(part RawPart, pt partType, eventCh chan<- even
 	}
 }
 
-func (a Antigravity) endCurrentPart(pt partType, eventCh chan<- event.Event) {
+func (a CloudCodeAssist) endCurrentPart(pt partType, eventCh chan<- event.Event) {
 	switch pt {
 	case partTypeText:
 		eventCh <- event.TextEnd{}
@@ -222,7 +221,7 @@ func (a Antigravity) endCurrentPart(pt partType, eventCh chan<- event.Event) {
 	}
 }
 
-func (a Antigravity) sendPartDelta(part RawPart, pt partType, eventCh chan<- event.Event) {
+func (a CloudCodeAssist) sendPartDelta(part RawPart, pt partType, eventCh chan<- event.Event) {
 	switch pt {
 	case partTypeText:
 		if text, ok := part["text"].(string); ok {
@@ -247,8 +246,7 @@ func streamFromAPI(
 	llmContext llm.LlmContext,
 	ch chan<- RawPart,
 ) error {
-	// url := "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
-	url := "https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:streamGenerateContent?alt=sse"
+	url := "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
 	jsonBody := buildRequestBody(opts, llmContext)
 
 	logger.Log.Debug("Preparing API request",
@@ -271,7 +269,7 @@ func streamFromAPI(
 	req.Header.Set("Authorization", "Bearer "+opts.APIKey)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("User-Agent", "antigravity/1.18.4 darwin/arm64")
+	req.Header.Set("User-Agent", fmt.Sprintf("GeminiCLI/1.0.0/%s (darwin; arm64)", opts.Model))
 
 	logger.Log.Debug("Sending API request")
 

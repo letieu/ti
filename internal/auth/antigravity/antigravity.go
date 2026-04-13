@@ -1,4 +1,4 @@
-package auth
+package antigravity
 
 import (
 	"bytes"
@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/letieu/ti/internal/auth"
 )
 
 type AntigravityAuth struct{}
@@ -37,38 +39,38 @@ var ANTIGRAVITY_SCOPES = []string{
 	"https://www.googleapis.com/auth/experimentsandconfigs",
 }
 
-func (a AntigravityAuth) Login() (OAuthCredentials, error) {
+func (a AntigravityAuth) Login() (auth.OAuthCredentials, error) {
 	verifier, challenge, err := generatePKCE()
 	if err != nil {
-		return OAuthCredentials{}, err
+		return auth.OAuthCredentials{}, err
 	}
 
 	result, err := a.getCode(challenge, verifier)
 	if err != nil {
-		return OAuthCredentials{}, err
+		return auth.OAuthCredentials{}, err
 	}
 
 	tokenRes, err := a.exchangeCodeForToken(result.Code, verifier)
 	if err != nil {
-		return OAuthCredentials{}, err
+		return auth.OAuthCredentials{}, err
 	}
 
 	// Get user email
 	email, err := a.getUserEmail(tokenRes.AccessToken)
 	if err != nil {
-		return OAuthCredentials{}, fmt.Errorf("failed to get user email: %w", err)
+		return auth.OAuthCredentials{}, fmt.Errorf("failed to get user email: %w", err)
 	}
 
 	// Discover project ID
 	projectId, err := discoverProject(tokenRes.AccessToken)
 	if err != nil {
-		return OAuthCredentials{}, fmt.Errorf("failed to discover project: %w", err)
+		return auth.OAuthCredentials{}, fmt.Errorf("failed to discover project: %w", err)
 	}
 
 	// Calculate expiry time (current time + expires_in seconds - 5 min buffer)
 	expiresAt := time.Now().Unix() + int64(tokenRes.ExpiresIn) - 5*60
 
-	return OAuthCredentials{
+	return auth.OAuthCredentials{
 		Access:  tokenRes.AccessToken,
 		Refresh: tokenRes.RefreshToken,
 		Expires: expiresAt,
@@ -79,7 +81,7 @@ func (a AntigravityAuth) Login() (OAuthCredentials, error) {
 	}, nil
 }
 
-func (a AntigravityAuth) RefreshToken(refreshToken string) (OAuthCredentials, error) {
+func (a AntigravityAuth) RefreshToken(refreshToken string) (auth.OAuthCredentials, error) {
 	formData := url.Values{
 		"client_id":     {decode(encodedClientID)},
 		"client_secret": {decode(encodedClientSecret)},
@@ -95,24 +97,24 @@ func (a AntigravityAuth) RefreshToken(refreshToken string) (OAuthCredentials, er
 	)
 
 	if err != nil {
-		return OAuthCredentials{}, err
+		return auth.OAuthCredentials{}, err
 	}
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return OAuthCredentials{}, err
+		return auth.OAuthCredentials{}, err
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
-		return OAuthCredentials{}, fmt.Errorf("antigravity token refresh failed: %s", string(body))
+		return auth.OAuthCredentials{}, fmt.Errorf("antigravity token refresh failed: %s", string(body))
 	}
 
 	var data TokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return OAuthCredentials{}, err
+		return auth.OAuthCredentials{}, err
 	}
 
 	finalRefresh := data.RefreshToken
@@ -122,7 +124,7 @@ func (a AntigravityAuth) RefreshToken(refreshToken string) (OAuthCredentials, er
 
 	expiresAt := time.Now().Unix() + int64(data.ExpiresIn) - 5*60
 
-	return OAuthCredentials{
+	return auth.OAuthCredentials{
 		Refresh:  finalRefresh,
 		Access:   data.AccessToken,
 		Expires:  expiresAt,
@@ -130,7 +132,7 @@ func (a AntigravityAuth) RefreshToken(refreshToken string) (OAuthCredentials, er
 	}, nil
 }
 
-func (AntigravityAuth) getCode(challenge string, verifier string) (*CallbackResult, error) {
+func (AntigravityAuth) getCode(challenge string, verifier string) (*auth.CallbackResult, error) {
 	params := url.Values{
 		"client_id":             {decode(encodedClientID)},
 		"response_type":         {"code"},
@@ -147,7 +149,7 @@ func (AntigravityAuth) getCode(challenge string, verifier string) (*CallbackResu
 
 	fmt.Printf("URL: %s", authURL)
 
-	srv, err := StartCallbackServer()
+	srv, err := auth.StartCallbackServer()
 	if err != nil {
 		return nil, err
 	}

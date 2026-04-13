@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/letieu/ti/internal/auth"
+	"github.com/letieu/ti/internal/auth/antigravity"
+	cloudcodeassist "github.com/letieu/ti/internal/auth/cloud_code_assist"
 	"github.com/letieu/ti/internal/config"
 )
 
@@ -28,7 +30,8 @@ func NewAuthManager() (*AuthManager, error) {
 		// ignore file-not-exist error
 	}
 
-	providerReg["antigravity"] = auth.AntigravityAuth{}
+	providerReg["antigravity"] = antigravity.AntigravityAuth{}
+	providerReg["cca"] = cloudcodeassist.CloudCodeAssistAuth{}
 	providerReg["mock"] = auth.MockAuth{}
 
 	return &AuthManager{

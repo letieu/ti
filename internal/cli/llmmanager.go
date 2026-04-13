@@ -7,6 +7,7 @@ import (
 	"github.com/letieu/ti/internal/auth"
 	"github.com/letieu/ti/internal/llm"
 	"github.com/letieu/ti/internal/llm/antigravity"
+	"github.com/letieu/ti/internal/llm/cloudcodeassist"
 	"github.com/letieu/ti/internal/llm/event"
 )
 
@@ -16,7 +17,7 @@ type LlmManager struct {
 }
 
 func NewLlmManager() *LlmManager {
-	providers := []string{"antigravity", "mock"}
+	providers := []string{"antigravity", "mock", "cca"}
 	return &LlmManager{providers: providers}
 }
 
@@ -41,6 +42,21 @@ func (m *LlmManager) SetProvider(provider string, model string, creds auth.OAuth
 
 	case "mock":
 		m.streamer = llm.MockStreamer{Response: "Hello from mock LLM"}
+		return nil
+	case "cca":
+		projectID := creds.Metadata["project_id"]
+		if projectID == "" {
+			return fmt.Errorf("project_id not found in credentials metadata")
+		}
+
+		m.streamer = cloudcodeassist.New(cloudcodeassist.GeminiOptions{
+			APIKey:          creds.Access,
+			ProjectID:       projectID,
+			Model:           model,
+			Temperature:     0.1,
+			MaxTokens:       2048,
+			IncludeThoughts: false,
+		})
 		return nil
 
 	default:
