@@ -8,6 +8,7 @@ import (
 	"github.com/letieu/ti/internal/auth"
 	"github.com/letieu/ti/internal/auth/antigravity"
 	cloudcodeassist "github.com/letieu/ti/internal/auth/cloud_code_assist"
+	githubcopilot "github.com/letieu/ti/internal/auth/github_copilot"
 	"github.com/letieu/ti/internal/config"
 )
 
@@ -32,6 +33,7 @@ func NewAuthManager() (*AuthManager, error) {
 
 	providerReg["antigravity"] = antigravity.AntigravityAuth{}
 	providerReg["cca"] = cloudcodeassist.CloudCodeAssistAuth{}
+	providerReg["copilot"] = githubcopilot.GitHubCopilotAuth{}
 	providerReg["mock"] = auth.MockAuth{}
 
 	return &AuthManager{

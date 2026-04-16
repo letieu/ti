@@ -17,7 +17,7 @@ type LlmManager struct {
 }
 
 func NewLlmManager() *LlmManager {
-	providers := []string{"antigravity", "mock", "cca"}
+	providers := []string{"antigravity", "mock", "cca", "copilot"}
 	return &LlmManager{providers: providers}
 }
 
@@ -42,6 +42,9 @@ func (m *LlmManager) SetProvider(provider string, model string, creds auth.OAuth
 
 	case "mock":
 		m.streamer = llm.MockStreamer{Response: "Hello from mock LLM"}
+		return nil
+	case "copilot":
+		m.streamer = llm.MockStreamer{Response: "Hello from GitHub Copilot (mock)"}
 		return nil
 	case "cca":
 		projectID := creds.Metadata["project_id"]
