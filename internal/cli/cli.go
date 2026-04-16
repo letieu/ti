@@ -213,8 +213,11 @@ func (c *Cli) handleCmd(command string) {
 		logger.Log.Info("Initiating login")
 		c.authManager.Login(c.provider)
 
+	case "/get-provider":
+		fmt.Printf("Provider: %s, Model: %s\n", c.provider, c.model)
+
 	case "/set-provider":
-		if len(parts) < 2 {
+		if len(parts) < 3 {
 			fmt.Println("Usage: /set-provider <provider> <model>")
 			fmt.Printf("Available providers: %s\n", strings.Join(c.llmManager.Providers(), ", "))
 			return
