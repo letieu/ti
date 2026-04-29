@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func (c *Cli) triggerFzf() (string, error) {
+func (c *Cli) triggerFzf(list string) (string, error) {
 	if c.term != nil {
 		c.term.Restore()
 	}
@@ -16,7 +16,7 @@ func (c *Cli) triggerFzf() (string, error) {
 	fmt.Print("\r")
 
 	cmd := exec.Command("fzf")
-	cmd.Stdin = strings.NewReader(c.listFiles())
+	cmd.Stdin = strings.NewReader(list)
 
 	out, err := cmd.Output()
 
@@ -27,10 +27,4 @@ func (c *Cli) triggerFzf() (string, error) {
 
 	selected := strings.TrimSpace(string(out))
 	return selected, nil
-}
-
-func (c *Cli) listFiles() string {
-	cmd := exec.Command("find", ".", "-type", "f")
-	out, _ := cmd.Output()
-	return string(out)
 }

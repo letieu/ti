@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"slices"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -22,12 +22,14 @@ type Cli struct {
 	stopSpinner chan bool
 	provider    string
 	model       string
+	commands    map[string]CommandFunc
 }
 
 func New() Cli {
 	t, _ := NewTerminal()
 
-	a := agent.NewAgent("you are a coding agent, in cli. For formatting the response, please do not use too much markdown format due to we are in cli, so, for heading, use icon instead of markdown", getDefaultTools())
+	a := agent.NewAgent("you are a coding agent, in cli. For formatting the response, please do not use too much markdown format due to we are in cli, so, for heading, use icon instead of markdown. I dont like talk too much, so keep answer clean and short", getDefaultTools())
+
 	if os.Getenv("TI_MEMORY_DUMP") == "true" {
 		if path := os.Getenv("TI_MEMORY_DUMP_PATH"); path != "" {
 			a.DebugMemoryDumpPath = path
@@ -39,7 +41,7 @@ func New() Cli {
 	authManager, _ := NewAuthManager()
 	llmManager := NewLlmManager()
 
-	return Cli{
+	c := Cli{
 		term:        t,
 		agent:       a,
 		ctx:         context.Background(),
@@ -49,6 +51,9 @@ func New() Cli {
 		provider:    "antigravity",
 		model:       "gemini-3-flash",
 	}
+
+	c.initCommands()
+	return c
 }
 
 func (c *Cli) startSpinner() {
@@ -83,10 +88,13 @@ func (c *Cli) Run() {
 		switch b {
 
 		case '@':
-			logger.Log.Debug("FZF triggered")
-			selected, _ := c.triggerFzf()
-			formated := fmt.Sprintf("\033[32m%s\033[0m", selected)
-			c.input = append(c.input, []rune(formated)...)
+			selected, _ := c.triggerFzf(c.listFiles())
+			c.input = append(c.input, []rune(selected)...)
+			c.renderInput()
+
+		case '/':
+			selected, _ := c.triggerFzf(c.CommandList())
+			c.input = append(c.input, []rune(selected)...)
 			c.renderInput()
 
 		// ENTER
@@ -197,56 +205,6 @@ func (c *Cli) handleChat(line string) {
 	}
 }
 
-func (c *Cli) handleCmd(command string) {
-	logger.Log.Debug("Handling command", "command", command)
-
-	// Parse command and arguments
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
-		return
-	}
-
-	cmd := parts[0]
-
-	switch cmd {
-	case "/login":
-		logger.Log.Info("Initiating login")
-		c.authManager.Login(c.provider)
-
-	case "/get-provider":
-		fmt.Printf("Provider: %s, Model: %s\n", c.provider, c.model)
-
-	case "/set-provider":
-		if len(parts) < 3 {
-			fmt.Println("Usage: /set-provider <provider> <model>")
-			fmt.Printf("Available providers: %s\n", strings.Join(c.llmManager.Providers(), ", "))
-			return
-		}
-
-		provider := parts[1]
-		providers := c.llmManager.Providers()
-
-		valid := slices.Contains(providers, provider)
-
-		if !valid {
-			fmt.Printf("Invalid provider: %s\n", provider)
-			fmt.Printf("Available providers: %s\n", strings.Join(providers, ", "))
-			return
-		}
-
-		c.provider = provider
-		fmt.Printf("Provider set to: %s\n", provider)
-		logger.Log.Info("Provider changed", "provider", provider)
-
-		model := parts[2]
-		c.model = model
-		fmt.Printf("Model set to: %s\n", model)
-
-	default:
-		fmt.Printf("Unknown command: %s\n", cmd)
-	}
-}
-
 func (c *Cli) renderInput() {
 	fmt.Print("\r")
 	fmt.Print("› ")
@@ -258,4 +216,10 @@ func (c *Cli) renderInput() {
 	fmt.Print("\r")
 	fmt.Print("› ")
 	fmt.Print(string(c.input))
+}
+
+func (c *Cli) listFiles() string {
+	cmd := exec.Command("find", ".", "-type", "f")
+	out, _ := cmd.Output()
+	return string(out)
 }
